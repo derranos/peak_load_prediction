@@ -3,15 +3,24 @@ from lightgbm import early_stopping, log_evaluation
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 import numpy as np
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, f1_score, recall_score, precision_score
 import matplotlib.pyplot as plt
 import pandas as pd
 from data_processing.data_processing import process_data, load_data
-def plot_confusion_matrix(model, X, y, title="Confusion Matrix"):
-    y_pred = model.predict(X)
+def plot_confusion_matrix_and_metrics(model, X, y, yPred = None, title="Confusion Matrix"):
+    if yPred is None:
+        y_pred = model.predict(X)
+    else:
+        y_pred = yPred
     cm = confusion_matrix(y, y_pred, labels=sorted(y.unique()))
     acc_cm = np.trace(cm) / np.sum(cm)
     print("Accuracy из матрицы:", acc_cm)
+    f1 = f1_score(y, y_pred, average='weighted')
+    print("F1 Score:", f1)
+    recall = recall_score(y, y_pred, average='weighted')
+    print("Recall:", recall)
+    precision = precision_score(y, y_pred, average='weighted')
+    print("Precision:", precision)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=sorted(y.unique()))
     disp.plot(xticks_rotation=90, cmap="Blues")
     plt.title(title)
@@ -85,7 +94,7 @@ def model_testing(model, data):
     )
 
     y_pred = model.predict(X_valid)
-    plot_confusion_matrix(model, X_valid, y_valid)
+    plot_confusion_matrix_and_metrics(model, X_valid, y_valid)
     acc = accuracy_score(y_valid, y_pred)
     return model, acc
 
@@ -102,14 +111,16 @@ def model_accuracy(model, data):
     y = data["hour"].astype(int)
 
     y_pred = model.predict(X)
-    plot_confusion_matrix(model, X, y)
+    plot_confusion_matrix_and_metrics(model, X, y)
     acc = accuracy_score(y, y_pred)
     return acc
 
 def predict_month(model, month, year=2025):
     # Загрузка исторических данных
-    historical_data = load_data("data/data_2022-2024.csv", start_date="2022-01-01")
-    last_df = historical_data.copy()  # Копируем для обновлений
+    historical_data_2021_2024 = load_data("data/data_2022-2024.csv", start_date="2022-01-01")
+    historical_data_2025 = load_data("data/data_2025.csv", start_date="2025-01-01")
+    historical_data_2021_2024 = pd.concat([historical_data_2021_2024, historical_data_2025[historical_data_2025['date'] < pd.Timestamp(f"{year}-{month:02d}-01")]], ignore_index=True)
+    last_df = historical_data_2021_2024.copy()  # Копируем для обновлений
 
     # Даты от января до конца переданного месяца
     start_date = pd.Timestamp(f"{year}-01-01")
@@ -144,6 +155,6 @@ def predict_month(model, month, year=2025):
 
     # Сохранение в CSV
     csv_file = f"data/predictions_{year}_{month:02d}.csv"
-    result.to_csv(csv_file, index=False)
+    #result.to_csv(csv_file, index=False)
     print(f"Предсказания сохранены в {csv_file}")
     return result

@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 
 def target_distribution_by_year(data):
     data["year"] = pd.to_datetime(data["date"]).dt.year
+    print(data["hour"].unique())
     dist = data.groupby("year")["hour"].value_counts(normalize=True).unstack().fillna(0)
     
     dist.T.plot(kind="bar", figsize=(15,6), width=0.8)
@@ -14,6 +15,59 @@ def target_distribution_by_year(data):
     plt.ylabel("Доля")
     plt.show()
 
+def target_distribution_by_month(data):
+    data["month"] = pd.to_datetime(data["date"]).dt.month
+    unique_months = sorted(data["month"].unique())
+    n_months = len(unique_months)
+    
+    # Сетка подграфиков: 4 ряда по 3 столбца для 12 месяцев
+    fig, axes = plt.subplots(nrows=(n_months + 2) // 3, ncols=3, figsize=(15, 5 * ((n_months + 2) // 3)), squeeze=False)
+    axes = axes.flatten()
+    
+    for i, month in enumerate(unique_months):
+        month_data = data[data["month"] == month]
+        dist = month_data["hour"].value_counts(normalize=True).sort_index().reindex(range(24), fill_value=0)
+        
+        axes[i].bar(dist.index, dist.values, width=0.8, edgecolor='black')
+        axes[i].set_title(f"Month {month}")
+        axes[i].set_xlabel("Hour")
+        axes[i].set_ylabel("Proportion")
+        axes[i].set_xticks(range(0, 24, 2))
+        axes[i].grid(True, alpha=0.3)
+    
+    # Удаляем лишние оси
+    for j in range(n_months, len(axes)):
+        fig.delaxes(axes[j])
+    
+    plt.tight_layout()
+    plt.show()
+
+def target_distribution_by_dayofweek(data):
+    data["dow"] = pd.to_datetime(data["date"]).dt.dayofweek
+    unique_dows = sorted(data["dow"].unique())
+    n_dows = len(unique_dows)
+    
+    # Сетка подграфиков: 3 ряда по 3 столбца для 7 дней недели
+    fig, axes = plt.subplots(nrows=(n_dows + 2) // 3, ncols=3, figsize=(15, 5 * ((n_dows + 2) // 3)), squeeze=False)
+    axes = axes.flatten()
+    
+    for i, dow in enumerate(unique_dows):
+        dow_data = data[data["dow"] == dow]
+        dist = dow_data["hour"].value_counts(normalize=True).sort_index().reindex(range(24), fill_value=0)
+        
+        axes[i].bar(dist.index, dist.values, width=0.8, edgecolor='black')
+        axes[i].set_title(f"Day of Week {dow} ({['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][dow]})")
+        axes[i].set_xlabel("Hour")
+        axes[i].set_ylabel("Proportion")
+        axes[i].set_xticks(range(0, 24, 2))
+        axes[i].grid(True, alpha=0.3)
+    
+    # Удаляем лишние оси
+    for j in range(n_dows, len(axes)):
+        fig.delaxes(axes[j])
+    
+    plt.tight_layout()
+    plt.show()
 
 def load_data(file_path, start_date="2021-01-01") -> pd.DataFrame:
     try:
@@ -37,9 +91,9 @@ def load_data(file_path, start_date="2021-01-01") -> pd.DataFrame:
         data["dow"] = data["date"].dt.weekday
         data["month"] = data["date"].dt.month
         # Заполняем пропуски медианой по dow и month
-        data["hour"] = data.groupby(['dow', 'month'])['hour'].transform(lambda x: x.fillna(x.median()))
+        data["hour"] = data.groupby(['dow', 'month'])['hour'].transform(lambda x: x.fillna(np.round(x.median())))
         # Если остались NaN (например, для редких групп), используем global median
-        data["hour"] = data["hour"].fillna(data["hour"].median())
+        data["hour"] = data["hour"].fillna(np.round(data["hour"].median()))
         # Удаляем временные колонки
         data.drop(columns=["dow", "month"], inplace=True)
         return data
@@ -124,6 +178,6 @@ def process_data(data: pd.DataFrame) -> pd.DataFrame:
     # Заполнение NaN
     lag_cols = ['hour_mean_7d', 'hour_std_7d', 'hour_median_30d', 'hour_trend_365d']
     for col in lag_cols:
-        data[col] = data[col].fillna(data['hour'].median())
+        data[col] = data[col].fillna(np.round(data['hour'].median()))
     data.drop(columns=["date"], inplace=True)
     return data
